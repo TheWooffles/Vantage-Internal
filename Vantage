@@ -2,9 +2,14 @@ if _G.UnloadVantage then
     _G.UnloadVantage()
 end
 
+--// Libraries
+local syde = loadstring(game:HttpGet("https://raw.githubusercontent.com/essencejs/syde/main/source",true))()
+local VantageEsp = loadstring(game:HttpGet("https://raw.githubusercontent.com/TheWooffles/Vantage-Internal/main/VantageEsp"))()
+
 --// Services & Variables
 local Players          = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local TeleportService  = game:GetService("TeleportService")
 local RunService       = game:GetService("RunService")
 local LocalPlayer      = Players.LocalPlayer
 local Camera           = workspace.CurrentCamera
@@ -28,6 +33,133 @@ _G.Config = {
 }
 
 --// User Interface
+syde:Load({
+	Logo = '7488932274',
+	Name = 'Vantage Internal',
+	Status = 'Stable',
+	Accent = Color3.fromRGB(255, 255, 255),
+	HitBox = Color3.fromRGB(255, 0, 0),
+	AutoLoad = false,
+	Socials = {
+		{
+			Name = 'Syde';
+			Style = 'Discord';
+			Size = "Large";
+			CopyToClip = false
+		},
+		{
+			Name = 'GitHub';
+			Style = 'GitHub';
+			Size = "Small";
+			CopyToClip = false
+		}
+	},
+	ConfigurationSaving = {
+		Enabled = true,
+		FolderName = 'Vantage',
+		FileName = "Config"
+	},
+	AutoJoinDiscord = { 
+		Enabled = false,
+		Invite = "CZRZBwPz",
+		RememberJoins = false
+	},
+})
+
+local Window = syde:Init({
+	Title = 'Vantage Internal';
+	SubText = 'Made With 💓 By @Cncspt'
+})
+
+local Combat  = Window:InitTab({ Title = 'Combat' })
+local Visuals = Window:InitTab({ Title = 'Visuals' })
+local Player  = Window:InitTab({ Title = 'Player' })
+local World   = Window:InitTab({ Title = 'World' })
+local Misc    = Window:InitTab({ Title = 'Misc' })
+
+Combat:Section('Aim Lock')
+Combat:Toggle({
+	Title = 'Team Check',
+	Value = true,
+	Config = true,
+	CallBack = function(v)
+		_G.Config.MouseLock.TeamCheck = v
+	end,
+	Flag = 'AimLockTeamCheck'
+})
+Combat:Toggle({
+	Title = 'Wall Check',
+	Value = true,
+	Config = true,
+	CallBack = function(v)
+		_G.Config.MouseLock.WallCheck = v
+	end,
+	Flag = 'AimLockWallCheck'
+})
+Combat:CreateSlider({
+	Title = 'Aim Lock Options',
+	Description = '',
+	Sliders = {
+		{
+			Title = 'FOV Size',
+			Range = {10, 200},
+			Increment = 5,
+			StarterValue = _G.Config.MouseLock.Radius,
+			CallBack = function(v)
+				_G.AimLock.FOVSize = v
+			end,
+			Flag = 'AimLockFOVSize'
+		},
+		{
+			Title = 'Smoothness',
+			Range = {0, 1},
+			Increment = 0.01,
+			StarterValue = _G.Config.MouseLock.Smoothness,
+			CallBack = function(v)
+				_G.Config.MouseLock.Smoothness = v
+			end,
+			Flag = 'AimLockSmoothness'
+		},
+	}
+})
+
+Visuals:Section('Enemy Esp')
+Visuals:Toggle({
+	Title = 'Enabled',
+	Value = false,
+	Config = true,
+	CallBack = function(v)
+		_G.ESP.Toggle(v)
+	end,
+	Flag = 'EspEnabled'
+})
+Visuals:Toggle({
+	Title = 'Team Check',
+	Value = true,
+	Config = true,
+	CallBack = function(v)
+		_G.ESP.SetTeamCheck(v)
+	end,
+	Flag = 'EspTeamCheck'
+})
+
+Misc:Section('Server')
+Misc:Button({
+	Title = 'Rejoin Server',
+	Description = 'Rejoins Current Server',
+	Type = 'Default',
+	HoldTime = 2,
+	CallBack = function()
+        syde:Notify({
+            Title = 'Rejoin Server',
+            Content = 'Rejoining current server...',
+            Duration = 5
+        })
+        task.wait(0.7)
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+	end,
+})
+
 drawings.Cursor = Drawing.new("Circle")
 drawings.Cursor.Position = Vector2.new(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
 drawings.Cursor.Visible = false

@@ -1,0 +1,218 @@
+-- Simple Nametag/ESP Framework for Roblox
+-- Place this in StarterPlayer > StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Configuration
+local CONFIG = {
+	Enabled = true,
+	ShowDistance = true,
+	ShowHealth = true,
+	MaxDistance = 1000,
+	TextSize = 14,
+	TextColor = Color3.fromRGB(255, 255, 255),
+	HealthBarEnabled = true,
+	TeamCheck = true, -- Set to true to only show enemies
+}
+
+-- Storage for ESP objects
+local ESPObjects = {}
+
+-- Create ESP for a character
+local function createESP(player, character)
+	if player == LocalPlayer then return end
+	if ESPObjects[player] then return end
+	
+	local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if not humanoidRootPart or not humanoid then return end
+	
+	-- Create BillboardGui
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ESP_" .. player.Name
+	billboard.Adornee = humanoidRootPart
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = humanoidRootPart
+	
+	-- Name Label
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "NameLabel"
+	nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
+	nameLabel.Position = UDim2.new(0, 0, 0, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = player.Name
+	nameLabel.TextColor3 = CONFIG.TextColor
+	nameLabel.TextSize = CONFIG.TextSize
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextStrokeTransparency = 0.5
+	nameLabel.Parent = billboard
+	
+	-- Distance Label
+	local distanceLabel = Instance.new("TextLabel")
+	distanceLabel.Name = "DistanceLabel"
+	distanceLabel.Size = UDim2.new(1, 0, 0.3, 0)
+	distanceLabel.Position = UDim2.new(0, 0, 0.4, 0)
+	distanceLabel.BackgroundTransparency = 1
+	distanceLabel.Text = "0 studs"
+	distanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	distanceLabel.TextSize = CONFIG.TextSize - 2
+	distanceLabel.Font = Enum.Font.Gotham
+	distanceLabel.TextStrokeTransparency = 0.5
+	distanceLabel.Visible = CONFIG.ShowDistance
+	distanceLabel.Parent = billboard
+	
+	-- Health Bar Background
+	local healthBarBG = Instance.new("Frame")
+	healthBarBG.Name = "HealthBarBG"
+	healthBarBG.Size = UDim2.new(0.8, 0, 0.15, 0)
+	healthBarBG.Position = UDim2.new(0.1, 0, 0.75, 0)
+	healthBarBG.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	healthBarBG.BorderSizePixel = 0
+	healthBarBG.Visible = CONFIG.HealthBarEnabled
+	healthBarBG.Parent = billboard
+	
+	-- Health Bar Fill
+	local healthBar = Instance.new("Frame")
+	healthBar.Name = "HealthBar"
+	healthBar.Size = UDim2.new(1, 0, 1, 0)
+	healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+	healthBar.BorderSizePixel = 0
+	healthBar.Parent = healthBarBG
+	
+	-- Store ESP object
+	ESPObjects[player] = {
+		Billboard = billboard,
+		NameLabel = nameLabel,
+		DistanceLabel = distanceLabel,
+		HealthBar = healthBar,
+		Character = character,
+		Humanoid = humanoid,
+		RootPart = humanoidRootPart
+	}
+end
+
+-- Remove ESP for a player
+local function removeESP(player)
+	if ESPObjects[player] then
+		if ESPObjects[player].Billboard then
+			ESPObjects[player].Billboard:Destroy()
+		end
+		ESPObjects[player] = nil
+	end
+end
+
+-- Update ESP information
+local function updateESP()
+	if not CONFIG.Enabled then return end
+	
+	local camera = workspace.CurrentCamera
+	local localChar = LocalPlayer.Character
+	local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
+	
+	if not localRoot then return end
+	
+	for player, espData in pairs(ESPObjects) do
+		if not player.Parent or not espData.Character.Parent then
+			removeESP(player)
+			continue
+		end
+		
+		-- Team check
+		if CONFIG.TeamCheck and player.Team == LocalPlayer.Team then
+			espData.Billboard.Enabled = false
+			continue
+		end
+		
+		-- Distance check
+		local distance = (localRoot.Position - espData.RootPart.Position).Magnitude
+		if distance > CONFIG.MaxDistance then
+			espData.Billboard.Enabled = false
+			continue
+		end
+		
+		espData.Billboard.Enabled = true
+		
+		-- Update distance
+		if CONFIG.ShowDistance then
+			espData.DistanceLabel.Text = string.format("%.0f studs", distance)
+		end
+		
+		-- Update health bar
+		if CONFIG.HealthBarEnabled and espData.Humanoid then
+			local healthPercent = espData.Humanoid.Health / espData.Humanoid.MaxHealth
+			espData.HealthBar.Size = UDim2.new(healthPercent, 0, 1, 0)
+			
+			-- Color gradient from red to green
+			local r = math.clamp(255 * (1 - healthPercent) * 2, 0, 255)
+			local g = math.clamp(255 * healthPercent * 2, 0, 255)
+			espData.HealthBar.BackgroundColor3 = Color3.fromRGB(r, g, 0)
+		end
+	end
+end
+
+-- Handle player added
+local function onPlayerAdded(player)
+	player.CharacterAdded:Connect(function(character)
+		task.wait(0.5)
+		createESP(player, character)
+	end)
+	
+	if player.Character then
+		createESP(player, player.Character)
+	end
+end
+
+-- Handle player removed
+local function onPlayerRemoving(player)
+	removeESP(player)
+end
+
+-- Initialize for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+	onPlayerAdded(player)
+end
+
+-- Connect events
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Update loop
+RunService.RenderStepped:Connect(updateESP)
+
+-- API for toggling features
+_G.ESP = {
+	Toggle = function(enabled)
+		CONFIG.Enabled = enabled
+		for _, espData in pairs(ESPObjects) do
+			espData.Billboard.Enabled = enabled
+		end
+	end,
+	
+	SetMaxDistance = function(distance)
+		CONFIG.MaxDistance = distance
+	end,
+	
+	SetTeamCheck = function(enabled)
+		CONFIG.TeamCheck = enabled
+	end,
+	
+	Refresh = function()
+		for player, _ in pairs(ESPObjects) do
+			removeESP(player)
+		end
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character then
+				createESP(player, player.Character)
+			end
+		end
+	end
+}
+
+print("ESP Framework Loaded!")
+-- print("Use _G.ESP.Toggle(false) to disable")
+-- print("Use _G.ESP.SetMaxDistance(500) to change max distance")
+-- print("Use _G.ESP.SetTeamCheck(true) to only show enemies")
