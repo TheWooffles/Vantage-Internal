@@ -7,29 +7,31 @@ local Players          = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService       = game:GetService("RunService")
 local LocalPlayer      = Players.LocalPlayer
+local Camera           = workspace.CurrentCamera
 
 --// Connections & States
 drawings    = {}
 connections = {}
 
 --// Config
-local Config = {
+_G.Config = {
     MouseLock = {
         Enabled = false,
         Keybind = Enum.KeyCode.LeftBracket,
-        Smoothness = 0,
-        Prediction = 0,
         TeamCheck = false,
         WallCheck = false,
-        TargetPart = "Head"
+        TargetPart = "Head",
+		Mode = "Fov", -- "Fov" | "NoFov"
+		Radius = 70,
+		Smoothness = 0.2
     },
 }
 
 --// User Interface
 drawings.Cursor = Drawing.new("Circle")
-drawings.Cursor.Position = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
-drawings.Cursor.Visible = true
-drawings.Cursor.Radius = 50
+drawings.Cursor.Position = Vector2.new(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
+drawings.Cursor.Visible = false
+drawings.Cursor.Radius = _G.Config.MouseLock.Radius
 drawings.Cursor.Transparency = 0.5
 drawings.Cursor.Thickness = 1
 drawings.Cursor.Filled = false
@@ -43,17 +45,8 @@ local function isPlayerAlive(player)
     return humanoid and humanoid.Health > 0
 end
 
-local function predictPosition(pos, vel, dist)
-    if Config.MouseLock.AutoPrediction and dist then
-        return pos + (vel * (dist / 500))
-    elseif Config.MouseLock.Prediction and Config.MouseLock.Prediction > 0 then
-        return pos + (vel * Config.MouseLock.Prediction)
-    end
-    return pos
-end
-
 local function isTargetVisible(targetPart, targetCharacter)
-    if not Config.MouseLock.WallCheck then
+    if not _G.Config.MouseLock.WallCheck then
         return true
     end
     
@@ -83,16 +76,21 @@ end
 
 local function getClosestPlayerToMouse()
     local closestPlayer = nil
-    local shortestDistance = 50
+	if _G.Config.MouseLock.Mode == "Fov" then
+    	shortestDistance = _G.Config.MouseLock.Radius
+	elseif _G.Config.MouseLock.Mode == "NoFov" then
+		shortestDistance = math.huge
+	end
+		
     
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and isPlayerAlive(player) then
             
-            if Config.MouseLock.TeamCheck and player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
+            if _G.Config.MouseLock.TeamCheck and player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
                 continue
             end
             
-            local targetPart = player.Character:FindFirstChild(Config.MouseLock.TargetPart) or player.Character:FindFirstChild("Head")
+            local targetPart = player.Character:FindFirstChild(_G.Config.MouseLock.TargetPart) or player.Character:FindFirstChild("Head")
             
             if targetPart then
                 local partPos = targetPart.Position
@@ -100,6 +98,7 @@ local function getClosestPlayerToMouse()
                 
                 if onScreen then
                     local screenPosVec = Vector2.new(screenPos.X, screenPos.Y)
+					MousePos = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
                     local distanceFromMouse = (MousePos - screenPosVec).Magnitude
                     
                     if isTargetVisible(targetPart, player.Character) then
@@ -117,12 +116,12 @@ local function getClosestPlayerToMouse()
 end
 
 connections.MouseLock = RunService.RenderStepped:Connect(function()
-    drawings.Cursor.Position = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
+    drawings.Cursor.Position = Vector2.new(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
     if not isPlayerAlive(LocalPlayer) then
         targetPlayer = nil
     end
     
-    if Config.MouseLock.Enabled then
+    if _G.Config.MouseLock.Enabled then
         local newTarget = getClosestPlayerToMouse()
         
         if newTarget and newTarget ~= targetPlayer then
@@ -132,7 +131,7 @@ connections.MouseLock = RunService.RenderStepped:Connect(function()
         end
         
         if targetPlayer and targetPlayer.Character then
-            local targetPart = targetPlayer.Character:FindFirstChild(Config.MouseLock.TargetPart) or targetPlayer.Character:FindFirstChild("Head")
+            local targetPart = targetPlayer.Character:FindFirstChild(_G.Config.MouseLock.TargetPart) or targetPlayer.Character:FindFirstChild("Head")
             
             if targetPart then
                 local partPos = targetPart.Position
@@ -140,8 +139,13 @@ connections.MouseLock = RunService.RenderStepped:Connect(function()
                 if onScreen then
                     local mousePos = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
                     local targetPos = Vector2.new(screenPos.X, screenPos.Y)
-                    
-                    local delta = targetPos - mousePos
+					local Pos
+					if _G.Config.MouseLock.Smoothness == 1 then
+						Pos = Vector2.new(screenPos.X, screenPos.Y)
+					elseif _G.Config.MouseLock.Smoothness < 1 then
+						Pos = mousePos:Lerp(targetPos, math.clamp(_G.Config.MouseLock.Smoothness, 0, 1))
+					end
+                    local delta = Pos - mousePos
                     mousemoverel(delta.X, delta.Y)
                 end
             end
@@ -153,8 +157,15 @@ end)
 
 connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Config.MouseLock.Keybind then
-        Config.MouseLock.Enabled = not Config.MouseLock.Enabled
+    if input.KeyCode == _G.Config.MouseLock.Keybind then
+        _G.Config.MouseLock.Enabled = not _G.Config.MouseLock.Enabled
+		if _G.Config.MouseLock.Enabled then
+			drawings.Cursor.Visible = true
+			print("[Vantage] :: Locked")
+		elseif not _G.Config.MouseLock.Enabled then
+			drawings.Cursor.Visible = false
+			print("[Vantage] :: Unlocked")
+		end
     end
 end)
 
@@ -169,5 +180,4 @@ _G.UnloadVantage = function()
     print("[Vantage] :: Unloaded!")
 end
 
-_G.MouseLockCFG = Config
 print("[Vantage] :: loaded")
