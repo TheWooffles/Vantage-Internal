@@ -1,0 +1,36 @@
+if _G.UnloadRespawnGunScript then
+    UnloadRespawnGunScript()
+end
+
+--// Sevices & Variables
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local HumanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+local AK47Giver = CFrame.new()
+local RemingtonGiver = CFrame.new()
+connections = {}
+
+local function OnRespawn(Char)
+    local SavedHumanoidRootPart = HumanoidRootPart.CFrame
+    HumanoidRootPart.CFrame = AK47Giver
+    wait(0.01)
+    HumanoidRootPart.CFrame = SavedHumanoidRootPart
+    wait(0.01)
+    HumanoidRootPart.CFrame = RemingtonGiver
+    wait(0.01)
+    HumanoidRootPart.CFrame = SavedHumanoidRootPart
+end
+
+connections.CharAdded = LocalPlayer.CharacterAdded:Connect(OnRespawn)
+if LocalPlayer.Character then
+    OnRespawn(LocalPlayer.Character)
+end
+
+_G.UnloadRespawnGunScript = function()
+    for _, connection in pairs(connections) do
+        connection:Disconnect()
+    end
+    print("[Vantage Guns] :: Unloaded!")
+end
+print("[Vantage Guns] :: loaded")

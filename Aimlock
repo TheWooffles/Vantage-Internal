@@ -1,0 +1,173 @@
+if _G.UnloadVantage then
+    _G.UnloadVantage()
+end
+
+--// Services & Variables
+local Players          = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService       = game:GetService("RunService")
+local LocalPlayer      = Players.LocalPlayer
+
+--// Connections & States
+drawings    = {}
+connections = {}
+
+--// Config
+local Config = {
+    MouseLock = {
+        Enabled = false,
+        Keybind = Enum.KeyCode.LeftBracket,
+        Smoothness = 0,
+        Prediction = 0,
+        TeamCheck = false,
+        WallCheck = false,
+        TargetPart = "Head"
+    },
+}
+
+--// User Interface
+drawings.Cursor = Drawing.new("Circle")
+drawings.Cursor.Position = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
+drawings.Cursor.Visible = true
+drawings.Cursor.Radius = 50
+drawings.Cursor.Transparency = 0.5
+drawings.Cursor.Thickness = 1
+drawings.Cursor.Filled = false
+drawings.Cursor.Color = Color3.fromRGB(255,255,255)
+
+UserInputService.MouseIcon = 'http://www.roblox.com/asset?id=4882930015'
+
+local function isPlayerAlive(player)
+    if not player or not player.Character then return false end
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+
+local function predictPosition(pos, vel, dist)
+    if Config.MouseLock.AutoPrediction and dist then
+        return pos + (vel * (dist / 500))
+    elseif Config.MouseLock.Prediction and Config.MouseLock.Prediction > 0 then
+        return pos + (vel * Config.MouseLock.Prediction)
+    end
+    return pos
+end
+
+local function isTargetVisible(targetPart, targetCharacter)
+    if not Config.MouseLock.WallCheck then
+        return true
+    end
+    
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("Head") then
+        return false
+    end
+    
+    local origin = Camera.CFrame.Position
+    local direction = (targetPart.Position - origin).Unit * (targetPart.Position - origin).Magnitude
+    
+    local raycastParams = RaycastParams.new()
+    local filterList = {LocalPlayer.Character, targetCharacter}
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            table.insert(filterList, player.Character)
+        end
+    end
+    
+    raycastParams.FilterDescendantsInstances = filterList
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local rayResult = workspace:Raycast(origin, direction, raycastParams)
+    
+    return rayResult == nil
+end
+
+local function getClosestPlayerToMouse()
+    local closestPlayer = nil
+    local shortestDistance = 50
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and isPlayerAlive(player) then
+            
+            if Config.MouseLock.TeamCheck and player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
+                continue
+            end
+            
+            local targetPart = player.Character:FindFirstChild(Config.MouseLock.TargetPart) or player.Character:FindFirstChild("Head")
+            
+            if targetPart then
+                local partPos = targetPart.Position
+                local screenPos, onScreen = Camera:WorldToScreenPoint(partPos)
+                
+                if onScreen then
+                    local screenPosVec = Vector2.new(screenPos.X, screenPos.Y)
+                    local distanceFromMouse = (MousePos - screenPosVec).Magnitude
+                    
+                    if isTargetVisible(targetPart, player.Character) then
+                        if distanceFromMouse < shortestDistance then
+                            shortestDistance = distanceFromMouse
+                            closestPlayer = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+connections.MouseLock = RunService.RenderStepped:Connect(function()
+    drawings.Cursor.Position = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
+    if not isPlayerAlive(LocalPlayer) then
+        targetPlayer = nil
+    end
+    
+    if Config.MouseLock.Enabled then
+        local newTarget = getClosestPlayerToMouse()
+        
+        if newTarget and newTarget ~= targetPlayer then
+            targetPlayer = newTarget
+        elseif not newTarget and targetPlayer then
+            targetPlayer = nil
+        end
+        
+        if targetPlayer and targetPlayer.Character then
+            local targetPart = targetPlayer.Character:FindFirstChild(Config.MouseLock.TargetPart) or targetPlayer.Character:FindFirstChild("Head")
+            
+            if targetPart then
+                local partPos = targetPart.Position
+                local screenPos, onScreen = Camera:WorldToScreenPoint(partPos)
+                if onScreen then
+                    local mousePos = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
+                    local targetPos = Vector2.new(screenPos.X, screenPos.Y)
+                    
+                    local delta = targetPos - mousePos
+                    mousemoverel(delta.X, delta.Y)
+                end
+            end
+        end
+    else
+        targetPlayer = nil
+    end
+end)
+
+connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Config.MouseLock.Keybind then
+        Config.MouseLock.Enabled = not Config.MouseLock.Enabled
+    end
+end)
+
+_G.UnloadVantage = function()
+    for _, connection in pairs(connections) do
+        connection:Disconnect()
+    end
+    for _, drawing in pairs(drawings) do
+        drawing:Destroy()
+    end
+	UserInputService.MouseIcon = ''
+    print("[Vantage] :: Unloaded!")
+end
+
+_G.MouseLockCFG = Config
+print("[Vantage] :: loaded")
